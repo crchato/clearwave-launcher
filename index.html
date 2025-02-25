@@ -1,24 +1,210 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Clearwave Portal Access</title>
-  <style>
-    body {font-family: Arial, sans-serif; text-align: center; margin-top: 50px;}
-    .launch-btn {
-      background-color: #4682B4; 
-      color: white; 
-      padding: 15px 30px; 
-      font-size: 16px; 
-      border: none; 
-      border-radius: 4px; 
-      cursor: pointer;
-    }
-    .launch-btn:hover {background-color: #3A6D96;}
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clearwave Portal Integration</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        .header {
+            background-color: #f8f9fa;
+            padding: 10px 20px;
+            border-bottom: 1px solid #dee2e6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .content {
+            flex: 1;
+            position: relative;
+        }
+        #portalFrame {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        .fallback {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+        }
+        .fallback.active {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .btn {
+            background-color: #4682B4;
+            color: white;
+            padding: 12px 24px;
+            font-size: 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        .btn:hover {
+            background-color: #3A6D96;
+        }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+        .spinner {
+            border: 6px solid #f3f3f3;
+            border-top: 6px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-text {
+            font-size: 14px;
+        }
+        .status-connected .status-indicator {
+            background-color: #28a745;
+        }
+        .status-loading .status-indicator {
+            background-color: #ffc107;
+        }
+        .status-error .status-indicator {
+            background-color: #dc3545;
+        }
+    </style>
 </head>
 <body>
-  <h2>Clearwave Portal Access</h2>
-  <p>Click the button below to open the Clearwave Portal in a new window</p>
-  <button class="launch-btn" onclick="window.open('https://clearwave.cdgportal.com/main/infr/m_infr_login.php', '_blank', 'width=1200,height=800')">Launch Clearwave Portal</button>
+    <div class="container">
+        <div class="header">
+            <h2>Clearwave Portal</h2>
+            <div class="status status-loading">
+                <span class="status-indicator"></span>
+                <span class="status-text">Connecting...</span>
+            </div>
+        </div>
+        <div class="content">
+            <iframe 
+                id="portalFrame"
+                src="https://clearwave.cdgportal.com/main/infr/m_infr_login.php"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                sandbox="allow-forms allow-modals allow-popups allow-same-origin allow-scripts allow-downloads"
+            ></iframe>
+            
+            <div id="loadingIndicator" class="loading">
+                <div class="spinner"></div>
+                <p>Loading Clearwave Portal...</p>
+            </div>
+            
+            <div id="fallbackContent" class="fallback">
+                <h2>Unable to Embed Clearwave Portal</h2>
+                <p>The Clearwave Portal cannot be embedded directly due to security restrictions.</p>
+                <button class="btn" id="openPortalBtn">Open Clearwave Portal</button>
+                <p style="margin-top: 30px; color: #6c757d; font-size: 14px;">
+                    This is due to X-Frame-Options headers set by the Clearwave application.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const iframe = document.getElementById('portalFrame');
+            const fallback = document.getElementById('fallbackContent');
+            const loading = document.getElementById('loadingIndicator');
+            const openBtn = document.getElementById('openPortalBtn');
+            const status = document.querySelector('.status');
+            
+            // Set a timeout for iframe loading
+            const iframeTimeout = setTimeout(function() {
+                handleIframeFailure();
+            }, 8000);
+            
+            // Try to detect if iframe loaded successfully
+            iframe.onload = function() {
+                try {
+                    // Try to access iframe content - will throw error if blocked by same-origin policy
+                    const frameContent = iframe.contentWindow.document;
+                    
+                    // If we get here, iframe loaded successfully
+                    clearTimeout(iframeTimeout);
+                    loading.style.display = 'none';
+                    status.className = 'status status-connected';
+                    status.querySelector('.status-text').textContent = 'Connected';
+                } catch (e) {
+                    // Cross-origin error - iframe was blocked
+                    handleIframeFailure();
+                }
+            };
+            
+            // Handle iframe load failure
+            function handleIframeFailure() {
+                clearTimeout(iframeTimeout);
+                iframe.style.display = 'none';
+                loading.style.display = 'none';
+                fallback.classList.add('active');
+                status.className = 'status status-error';
+                status.querySelector('.status-text').textContent = 'Connection Blocked';
+            }
+            
+            // Error event also indicates iframe failed to load properly
+            iframe.onerror = handleIframeFailure;
+            
+            // Open portal in new window when button is clicked
+            openBtn.addEventListener('click', function() {
+                window.open('https://clearwave.cdgportal.com/main/infr/m_infr_login.php', '_blank', 'width=1200,height=800');
+            });
+            
+            // Also try to detect iframe content load failure
+            window.addEventListener('message', function(event) {
+                if (event.data === 'iframe-blocked') {
+                    handleIframeFailure();
+                }
+            });
+            
+            // Additional check - if iframe is empty after loading
+            setTimeout(function() {
+                try {
+                    if (iframe.contentDocument && 
+                        iframe.contentDocument.body && 
+                        iframe.contentDocument.body.innerHTML === '') {
+                        handleIframeFailure();
+                    }
+                } catch (e) {
+                    // Cross-origin error expected
+                }
+            }, 2000);
+        });
+    </script>
 </body>
-</html> 
+</html>
